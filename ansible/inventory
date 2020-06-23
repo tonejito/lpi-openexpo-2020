@@ -1,0 +1,5 @@
+[linux]
+debian    ansible_user=admin       ansible_host=debian.demo.tonejito.cf    color=CornflowerBlue
+ubuntu    ansible_user=ubuntu      ansible_host=ubuntu.demo.tonejito.cf    color=DarkOrange
+centos    ansible_user=centos      ansible_host=centos.demo.tonejito.cf    color=Purple
+amazon    ansible_user=ec2-user    ansible_host=amazon.demo.tonejito.cf    color=Gold

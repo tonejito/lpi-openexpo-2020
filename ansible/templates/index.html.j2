@@ -1,0 +1,20 @@
+<!--	= ^ . ^ =	-->
+<html>
+  <head>
+    <title>{{ ansible_facts['nodename'] }}</title>
+    <link href="data:image/x-icon;base64," rel="icon" type="image/x-icon" />
+    <link rel="stylesheet" type="text/css" href="//static.tonejito.org/css/stylesheet.css" />
+    <style type="text/css">
+      body {
+        background-color: {{ color }};
+      }
+    </style>
+  </head>
+  <body>
+    <div class="a">
+      <div class="b">
+        <p>{{ ansible_facts['nodename'] }}</p>
+      </div>
+    </div>
+  </body>
+</html>

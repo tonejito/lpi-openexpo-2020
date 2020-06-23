@@ -1,0 +1,56 @@
+#	~/.ssh/config
+# https://linux.die.net/man/5/ssh_config
+
+# Configuración para todos los hosts a los que se conecta
+Host *
+  TCPKeepAlive yes
+  ServerAliveInterval 10
+
+# Configuración general para todas las máquinas demo
+Host demo.tonejito.cf *.demo.tonejito.cf
+  # Redirigir el agente de SSH para permitir conexiones anidadas
+  # sin necesidad de copiar la llave privada a otros equipos
+  ForwardAgent yes
+  #
+  # Indica la llave privada a utilizar para la conexión
+  # De preferencia agregarla al agente con ssh-add
+  IdentityFile ~/.ssh/keys/openexpo-lpi_rsa
+
+# Configuración específica para un equipo
+Host ubuntu.demo.tonejito.cf
+  User ubuntu
+
+Host centos.demo.tonejito.cf
+  User centos
+
+Host amazon.demo.tonejito.cf
+  User ec2-user
+
+Host debian.demo.tonejito.cf
+  # Usuario con el que se inicia sesión en el equipo
+  User admin
+  #
+  # Redirigir el puerto 80 de CentOS hacia el puerto 1111 de Debian
+  LocalForward  localhost:1111  localhost:80
+  #
+  # Redirigit el puerto 80 de Amazon hacia el puerto 2222 de Debian
+  LocalForward  localhost:2222  amazon.demo.tonejito.cf:80
+  #
+  # Redirigir el puerto 80 de Amazon hacia el puerto 3333 de Debian
+  # para que pueda ser accedido por Ubuntu (require GatewayPorts)
+  LocalForward  0.0.0.0:3333  amazon.demo.tonejito.cf:80
+  #
+  # Redirigir el puerto 80 de Debian hacia el puerto 5555 de CentOS
+  RemoteForward  localhost:5555  localhost:80
+  #
+  # Redirigir el puerto 80 de Ubuntu hacia el puerto 6666 de CentOS
+  RemoteForward  localhost:6666  ubuntu.demo.tonejito.cf:80
+  #
+  # Redirigir el puerto 80 de Ubuntu hacia el puerto 7777 de CentOS
+  # para que pueda ser accedido por Amazon (require GatewayPorts)
+  RemoteForward  0.0.0.0:7777  ubuntu.demo.tonejito.cf:80
+  #
+  # Levantar un proxy SOCKS en el puerto 1080 local
+  # Se puede especificar como dirección 0.0.0.0 pero requiere
+  # que se tenga habilitado GatewayPorts en el servidor
+  DynamicForward  localhost:1080

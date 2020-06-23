@@ -1,0 +1,322 @@
+# https://docs.ansible.com/ansible/latest/user_guide/playbooks.html
+# https://docs.ansible.com/ansible/latest/modules/hostname_module.html
+# https://docs.ansible.com/ansible/latest/modules/lineinfile_module.html
+# https://docs.ansible.com/ansible/latest/modules/template_module.html
+# https://docs.ansible.com/ansible/latest/modules/copy_module.html
+# https://docs.ansible.com/ansible/latest/modules/user_module.html
+# https://docs.ansible.com/ansible/latest/modules/authorized_key_module.html
+# https://docs.ansible.com/ansible/latest/modules/iptables_module.html
+# https://docs.ansible.com/ansible/latest/modules/apt_module.html
+# https://docs.ansible.com/ansible/latest/modules/yum_module.html
+# https://docs.ansible.com/ansible/latest/modules/service_module.html
+
+################################################################################
+# Define scope and variables
+
+- hosts: all
+  become: yes
+  vars:
+    dns_domain: demo.tonejito.cf
+    ssh_key_file: ~/.ssh/keys/openexpo-lpi_rsa.pub
+  tasks:
+
+################################################################################
+# Set hostname
+
+  - name: Set hostname
+    hostname:
+      name: "{{ ansible_facts['distribution'] | lower }}.{{ dns_domain }}"
+    tags:
+    - hostname
+
+  # - name: Get hostname
+  #   command: hostname -f
+  #   tags:
+  #   - hostname
+  #   register: output
+  # - debug: var=output.stdout_lines
+
+################################################################################
+# Add user and ssh key
+
+  - name: Fix /etc/sudoers on Debian-like
+    lineinfile:
+      path: /etc/sudoers
+      state: present
+      regexp: '^%sudo'
+      line: '%sudo ALL=(ALL) NOPASSWD: ALL'
+      validate: 'visudo -cf %s'
+    when: ansible_os_family == "Debian"
+    tags:
+    - user
+
+  - name: Fix /etc/sudoers on RedHat-like
+    lineinfile:
+      path: /etc/sudoers
+      state: present
+      regexp: '^%wheel'
+      line: '%wheel ALL=(ALL) NOPASSWD: ALL'
+      validate: 'visudo -cf %s'
+    when: ansible_os_family == "RedHat"
+    tags:
+    - user
+
+  - name: Add user on Debian-like
+    user:
+      name: tonejito
+      comment: "= ^ . ^ ="
+      group: sudo
+      shell: /bin/bash
+      state: present
+    when: ansible_os_family == "Debian"
+    tags:
+    - user
+
+  - name: Add user on RedHat-like
+    user:
+      name: tonejito
+      comment: "= ^ . ^ ="
+      group: wheel
+      state: present
+    when: ansible_os_family == "RedHat"
+    tags:
+    - user
+
+  - name: Copy SSH key
+    authorized_key:
+      user: tonejito
+      state: present
+      key: "{{ lookup('file', '{{ ssh_key_file }}') }}"
+    tags:
+    - user
+
+################################################################################
+# IPtables base profile
+
+  - name: Reset default policies
+    iptables:
+      chain: "{{ item }}"
+      policy: ACCEPT
+    with_items:
+    - INPUT
+    - OUTPUT
+    - FORWARD
+    tags:
+    - iptables
+
+  - name: Flush filter rules
+    iptables:
+      table: filter
+      chain: "{{ item }}"
+      flush: yes
+    with_items:
+    - INPUT
+    - FORWARD
+    - OUTPUT
+    tags:
+    - iptables
+
+  - name: Allow loopback input traffic
+    iptables:
+      chain: INPUT
+      in_interface: lo
+      jump: ACCEPT
+      comment: allow loopback input
+    tags:
+    - iptables
+
+  - name: Allow loopback output traffic
+    iptables:
+      chain: OUTPUT
+      out_interface: lo
+      jump: ACCEPT
+      comment: allow loopback output
+    tags:
+    - iptables
+
+  - name: Allow ESTABLISHED and RELATED connections
+    iptables:
+      chain: INPUT
+      ctstate: ESTABLISHED,RELATED
+      jump: ACCEPT
+      comment: allow ESTABLISHED and RELATED
+    tags:
+    - iptables
+
+  - name: Allow ICMP
+    iptables:
+      chain: INPUT
+      protocol: icmp
+      jump: ACCEPT
+      comment: allow icmp
+    tags:
+    - iptables
+
+  - name: Allow SSH
+    iptables:
+      chain: INPUT
+      protocol: tcp
+      destination_port: "22"
+      jump: ACCEPT
+      comment: allow ssh
+    tags:
+    - iptables
+
+################################################################################
+# Allow / Block depending on OS family
+
+  - name: Debian-like blocks RedHat-like
+    iptables:
+      chain: INPUT
+      source: "{{ item }}"
+      jump: REJECT
+    with_items:
+    - "centos.{{ dns_domain }}"
+    - "amazon.{{ dns_domain }}"
+    when: ansible_os_family == "Debian"
+    tags:
+    - iptables
+
+  - name: RedHat-like blocks Debian-like
+    iptables:
+      chain: INPUT
+      source: "{{ item }}"
+      jump: REJECT
+    with_items:
+    - "debian.{{ dns_domain }}"
+    - "ubuntu.{{ dns_domain }}"
+    when: ansible_os_family == "RedHat"
+    tags:
+    - iptables
+
+################################################################################
+# Check final iptables rules
+
+  # - name: Check iptables rules
+  #   command: iptables-save
+  #   tags:
+  #   - iptables
+  #   register: output
+  # - debug: var=output.stdout_lines
+
+################################################################################
+# Install network services
+
+  - name: Update apt cache on Debian-like
+    apt:
+      update_cache: yes
+      cache_valid_time: 3600
+    when: ansible_os_family == "Debian"
+    tags:
+    - packages
+
+  - name: Update yum cache on RedHat-like
+    yum:
+      update_cache: yes
+    when: ansible_os_family == "RedHat"
+    tags:
+    - packages
+
+################################################################################
+# Install network services
+
+  - name: Install packages on Debian-like
+    apt:
+      name:
+      - ssh
+      - net-tools
+      - apache2
+      - elinks
+      - netcat-openbsd
+      state: present
+    when: ansible_os_family == "Debian"
+    tags:
+    - packages
+
+  - name: Install packages on RedHat-like
+    yum:
+      name:
+      - openssh
+      - httpd
+      - elinks
+      - nmap-ncat
+      state: present
+    when: ansible_os_family == "RedHat"
+    tags:
+    - packages
+
+################################################################################
+# Enable and start network services
+
+  - name: Enable and start service apache2 on Debian-like
+    service:
+      name: apache2
+      enabled: yes
+      state: started
+    when: ansible_os_family == "Debian"
+    tags:
+    - services
+
+  - name: Enable and start service httpd on RedHat-like
+    service:
+      name: httpd
+      enabled: yes
+      state: started
+    when: ansible_os_family == "RedHat"
+    tags:
+    - services
+
+  - name: Enable GatewayPorts in sshd_config
+    lineinfile:
+      path: /etc/ssh/sshd_config
+      state: present
+      regexp: '^#GatewayPorts no'
+      line: 'GatewayPorts yes'
+    tags:
+    - services
+    - ssh
+
+  - name: Restart ssh on Debian-like
+    service:
+      name: ssh
+      state: restarted
+    when: ansible_os_family == "Debian"
+    tags:
+    - services
+    - ssh
+
+  - name: Restart ssh on RedHat-like
+    service:
+      name: sshd
+      state: restarted
+    when: ansible_os_family == "RedHat"
+    tags:
+    - services
+    - ssh
+
+################################################################################
+# Web content
+
+  - name: Set up index.html
+    template:
+      src: templates/index.html.j2
+      dest: /var/www/html/index.html
+      owner: root
+      group: root
+      mode: "0644"
+      force: yes
+    tags:
+    - services
+    - web
+
+  - name: Set up dummy favicon.ico
+    copy:
+      content: ""
+      dest: /var/www/html/favicon.ico
+      owner: root
+      group: root
+      mode: "0644"
+      force: yes
+    tags:
+    - services
+    - web
